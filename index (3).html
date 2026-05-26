@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Option Payoff Calculator</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0e0e0f;
+    --surface: #161618;
+    --surface2: #1e1e21;
+    --border: rgba(255,255,255,0.08);
+    --border2: rgba(255,255,255,0.14);
+    --text: #e8e8e6;
+    --muted: #7a7a78;
+    --accent: #c8f060;
+    --accent2: #60c8f0;
+    --danger: #f06060;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    min-height: 100vh;
+    padding: 2rem;
+  }
+
+  header { margin-bottom: 2.5rem; }
+  header h1 {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  header p { font-size: 22px; font-weight: 300; color: var(--text); letter-spacing: -0.01em; }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 360px 1fr;
+    gap: 1.5rem;
+    align-items: start;
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 0.5px solid var(--border2);
+    border-radius: 10px;
+    padding: 1.5rem;
+  }
+
+  .panel-title {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 1.2rem;
+  }
+
+  .form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  .field label {
+    display: block;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 5px;
+  }
+
+  .field input, .field select {
+    width: 100%;
+    background: var(--surface2);
+    border: 0.5px solid var(--border2);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 8px 10px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  .field input:focus, .field select:focus { border-color: var(--accent); }
+  .field select option { background: #1e1e21; }
+
+  .btn-add {
+    width: 100%;
+    padding: 10px;
+    background: var(--accent);
+    color: #0e0e0f;
+    border: none;
+    border-radius: 6px;
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+  .btn-add:hover { opacity: 0.88; }
+  .btn-add:active { transform: scale(0.98); }
+
+  .divider { border: none; border-top: 0.5px solid var(--border); margin: 1.4rem 0; }
+
+  #options-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 320px;
+    overflow-y: auto;
+  }
+  #options-list:empty::after {
+    content: 'Nessuna opzione aggiunta';
+    font-size: 12px;
+    color: var(--muted);
+    font-style: italic;
+  }
+
+  .option-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface2);
+    border: 0.5px solid var(--border);
+    border-radius: 6px;
+    padding: 9px 11px;
+    animation: fadeIn 0.2s ease;
+  }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:none; } }
+
+  .opt-badge {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 500;
+    padding: 3px 7px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+  .opt-badge.lc { background: rgba(29,158,117,0.18); color: #5dca97; }
+  .opt-badge.sc { background: rgba(226,75,74,0.18);  color: #f08080; }
+  .opt-badge.lp { background: rgba(55,138,221,0.18); color: #7ab8ef; }
+  .opt-badge.sp { background: rgba(239,159,39,0.18); color: #f0b860; }
+
+  .opt-info { flex: 1; font-family: var(--mono); font-size: 12px; color: var(--text); line-height: 1.5; }
+  .opt-info span { color: var(--muted); font-size: 11px; }
+
+  .btn-remove {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    padding: 2px 4px;
+    border-radius: 4px;
+    transition: color 0.15s, background 0.15s;
+  }
+  .btn-remove:hover { color: var(--danger); background: rgba(240,96,96,0.1); }
+
+  .chart-panel {
+    background: var(--surface);
+    border: 0.5px solid var(--border2);
+    border-radius: 10px;
+    padding: 1.5rem;
+  }
+
+  .chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1.2rem;
+  }
+
+  .stats { display: flex; gap: 1.5rem; }
+  .stat { text-align: right; }
+  .stat-label { font-size: 10px; letter-spacing: 0.08em; color: var(--muted); text-transform: uppercase; }
+  .stat-val { font-family: var(--mono); font-size: 16px; font-weight: 500; margin-top: 2px; }
+  .stat-val.pos { color: var(--accent); }
+  .stat-val.neg { color: var(--danger); }
+
+  .chart-wrap { position: relative; width: 100%; height: 380px; }
+
+  .be-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 1rem; }
+  .be-pill {
+    font-family: var(--mono);
+    font-size: 11px;
+    background: rgba(200,240,96,0.1);
+    color: var(--accent);
+    border: 0.5px solid rgba(200,240,96,0.3);
+    border-radius: 20px;
+    padding: 4px 12px;
+  }
+  .be-label {
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-top: 1rem;
+    margin-bottom: 4px;
+  }
+
+  .btn-reset {
+    background: none;
+    border: 0.5px solid var(--border2);
+    border-radius: 6px;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 6px 14px;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+    margin-top: 12px;
+    width: 100%;
+    letter-spacing: 0.06em;
+  }
+  .btn-reset:hover { border-color: var(--danger); color: var(--danger); }
+
+  .empty-chart {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 380px;
+    color: var(--muted);
+    font-size: 13px;
+    gap: 8px;
+  }
+  .empty-chart svg { opacity: 0.3; }
+
+  .presets { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 1rem; }
+  .btn-preset {
+    background: var(--surface2);
+    border: 0.5px solid var(--border2);
+    border-radius: 5px;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 5px 10px;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+    letter-spacing: 0.04em;
+  }
+  .btn-preset:hover { border-color: var(--accent2); color: var(--accent2); }
+
+  @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<header>
+  <p>Costruttore di payoff su opzioni</p>
+</header>
+
+<div class="layout">
+
+  <div>
+    <div class="panel">
+      <div class="panel-title">Aggiungi opzione</div>
+      <div class="form-grid">
+        <div class="field" style="grid-column:1/3">
+          <label>Tipo</label>
+          <select id="f-type">
+            <option value="lc">Long Call</option>
+            <option value="sc">Short Call</option>
+            <option value="lp">Long Put</option>
+            <option value="sp">Short Put</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Strike K</label>
+          <input type="number" id="f-strike" value="100" min="1" step="1">
+        </div>
+        <div class="field">
+          <label>Premio</label>
+          <input type="number" id="f-premium" value="5" min="0" step="0.5">
+        </div>
+        <div class="field" style="grid-column:1/3">
+          <label>Quantità (lotti)</label>
+          <input type="number" id="f-qty" value="1" min="-100" step="1">
+        </div>
+      </div>
+      <button class="btn-add" onclick="addOption()">+ Aggiungi</button>
+
+      <hr class="divider">
+
+      <div class="panel-title" style="margin-bottom:8px;">Strategie predefinite</div>
+      <div class="presets">
+        <button class="btn-preset" onclick="loadPreset('straddle')">Straddle</button>
+        <button class="btn-preset" onclick="loadPreset('strangle')">Strangle</button>
+        <button class="btn-preset" onclick="loadPreset('bull_spread')">Bull Spread</button>
+        <button class="btn-preset" onclick="loadPreset('bear_spread')">Bear Spread</button>
+        <button class="btn-preset" onclick="loadPreset('butterfly')">Butterfly</button>
+        <button class="btn-preset" onclick="loadPreset('covered_call')">Covered Call</button>
+      </div>
+
+      <hr class="divider">
+
+      <div class="panel-title">Portafoglio opzioni</div>
+      <div id="options-list"></div>
+      <button class="btn-reset" onclick="resetAll()">↺ Azzera tutto</button>
+    </div>
+  </div>
+
+  <div class="chart-panel">
+    <div class="chart-header">
+      <div class="panel-title" style="margin-bottom:0;">Payoff globale a scadenza</div>
+      <div class="stats">
+        <div class="stat">
+          <div class="stat-label">Max profitto</div>
+          <div class="stat-val pos" id="stat-max">—</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Max perdita</div>
+          <div class="stat-val neg" id="stat-min">—</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="chart-wrap">
+      <div class="empty-chart" id="empty-msg">
+        <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+          <rect x="4" y="32" width="40" height="1.5" rx="1" fill="currentColor"/>
+          <rect x="4" y="4" width="1.5" height="40" rx="1" fill="currentColor"/>
+          <polyline points="10,32 22,32 36,16" stroke="currentColor" stroke-width="2" fill="none"/>
+        </svg>
+        <span>Aggiungi opzioni per visualizzare il payoff</span>
+      </div>
+      <canvas id="payoffChart" role="img" aria-label="Grafico payoff combinato" style="display:none;"></canvas>
+    </div>
+
+    <div id="be-section" style="display:none;">
+      <div class="be-label">Breakeven point(s)</div>
+      <div class="be-row" id="be-pills"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let options = [];
+let chart = null;
+
+const LABELS = { lc:'Long Call', sc:'Short Call', lp:'Long Put', sp:'Short Put' };
+
+function payoff(opt, S) {
+  const {type, strike, premium, qty} = opt;
+  let raw = 0;
+  if (type === 'lc') raw =  Math.max(S - strike, 0) - premium;
+  if (type === 'sc') raw = -Math.max(S - strike, 0) + premium;
+  if (type === 'lp') raw =  Math.max(strike - S, 0) - premium;
+  if (type === 'sp') raw = -Math.max(strike - S, 0) + premium;
+  return raw * qty;
+}
+
+function totalPayoff(S) {
+  return options.reduce((sum, o) => sum + payoff(o, S), 0);
+}
+
+function addOption() {
+  const type    = document.getElementById('f-type').value;
+  const strike  = parseFloat(document.getElementById('f-strike').value);
+  const premium = parseFloat(document.getElementById('f-premium').value);
+  const qty     = parseFloat(document.getElementById('f-qty').value);
+  if (isNaN(strike) || isNaN(premium) || isNaN(qty)) return;
+  options.push({ type, strike, premium, qty, id: Date.now() });
+  renderList();
+  renderChart();
+}
+
+function removeOption(id) {
+  options = options.filter(o => o.id !== id);
+  renderList();
+  renderChart();
+}
+
+function renderList() {
+  const el = document.getElementById('options-list');
+  el.innerHTML = '';
+  options.forEach(o => {
+    const row = document.createElement('div');
+    row.className = 'option-row';
+    const sign = o.qty >= 0 ? '+' : '';
+    row.innerHTML = `
+      <span class="opt-badge ${o.type}">${LABELS[o.type]}</span>
+      <div class="opt-info">
+        K = ${o.strike} &nbsp;|&nbsp; P = ${o.premium}<br>
+        <span>qty: ${sign}${o.qty}</span>
+      </div>
+      <button class="btn-remove" onclick="removeOption(${o.id})">×</button>
+    `;
+    el.appendChild(row);
+  });
+}
+
+function renderChart() {
+  const empty     = document.getElementById('empty-msg');
+  const canvas    = document.getElementById('payoffChart');
+  const beSection = document.getElementById('be-section');
+
+  if (options.length === 0) {
+    empty.style.display = 'flex';
+    canvas.style.display = 'none';
+    beSection.style.display = 'none';
+    document.getElementById('stat-max').textContent = '—';
+    document.getElementById('stat-min').textContent = '—';
+    if (chart) { chart.destroy(); chart = null; }
+    return;
+  }
+
+  empty.style.display = 'none';
+  canvas.style.display = 'block';
+
+  const strikes = options.map(o => o.strike);
+  const minK = Math.min(...strikes);
+  const maxK = Math.max(...strikes);
+  const pad  = Math.max((maxK - minK) * 0.7, 50);
+  const Smin = Math.max(1, Math.floor(minK - pad));
+  const Smax = Math.ceil(maxK + pad);
+
+  const prices = [];
+  for (let s = Smin; s <= Smax; s += (Smax - Smin) / 300)
+    prices.push(parseFloat(s.toFixed(2)));
+
+  const payoffs = prices.map(s => parseFloat(totalPayoff(s).toFixed(4)));
+
+  const maxP = Math.max(...payoffs);
+  const minP = Math.min(...payoffs);
+  document.getElementById('stat-max').textContent = maxP > 1e6 ? '∞' : (maxP >= 0 ? '+' : '') + maxP.toFixed(2);
+  document.getElementById('stat-min').textContent = minP < -1e6 ? '-∞' : minP.toFixed(2);
+
+  // breakeven
+  const bePoints = [];
+  for (let i = 0; i < payoffs.length - 1; i++) {
+    if ((payoffs[i] < 0 && payoffs[i+1] >= 0) || (payoffs[i] >= 0 && payoffs[i+1] < 0)) {
+      const s = prices[i] + (prices[i+1] - prices[i]) * (-payoffs[i]) / (payoffs[i+1] - payoffs[i]);
+      bePoints.push(s.toFixed(2));
+    }
+  }
+  const bePills = document.getElementById('be-pills');
+  bePills.innerHTML = bePoints.length
+    ? bePoints.map(b => `<span class="be-pill">S = ${b}</span>`).join('')
+    : `<span class="be-pill" style="color:var(--muted);border-color:var(--border);">Nessun breakeven nel range</span>`;
+  beSection.style.display = 'block';
+
+  const indColors = ['rgba(93,202,151,0.5)','rgba(240,128,128,0.5)','rgba(122,184,239,0.5)','rgba(240,184,96,0.5)','rgba(200,150,240,0.5)'];
+  const indDashes = [[],[5,5],[3,3],[7,3],[4,2]];
+
+  const datasets = [
+    {
+      label: 'Zero',
+      data: prices.map(() => 0),
+      borderColor: 'rgba(255,255,255,0.15)',
+      borderWidth: 1,
+      pointRadius: 0,
+      tension: 0,
+      fill: false,
+    },
+    ...options.map((o, i) => ({
+      label: `${LABELS[o.type]} K${o.strike}`,
+      data: prices.map(s => parseFloat(payoff(o, s).toFixed(4))),
+      borderColor: indColors[i % indColors.length],
+      borderDash: indDashes[i % indDashes.length],
+      borderWidth: 1,
+      pointRadius: 0,
+      tension: 0,
+      fill: false,
+    })),
+    {
+      label: 'Payoff totale',
+      data: payoffs,
+      segment: { borderColor: ctx => ctx.p1.parsed.y >= 0 ? '#c8f060' : '#f06060' },
+      borderWidth: 2.5,
+      pointRadius: 0,
+      tension: 0,
+      fill: { target: {value:0}, above: 'rgba(200,240,96,0.07)', below: 'rgba(240,96,96,0.07)' },
+    },
+  ];
+
+  if (chart) chart.destroy();
+  chart = new Chart(canvas, {
+    type: 'line',
+    data: { labels: prices, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 300 },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          mode: 'index',
+          intersect: false,
+          backgroundColor: '#1e1e21',
+          borderColor: 'rgba(255,255,255,0.12)',
+          borderWidth: 0.5,
+          titleColor: '#c8f060',
+          bodyColor: '#b0b0ae',
+          titleFont: { family: 'IBM Plex Mono', size: 12 },
+          bodyFont:  { family: 'IBM Plex Mono', size: 11 },
+          callbacks: {
+            title: ctx => `S = ${parseFloat(ctx[0].label).toFixed(1)}`,
+            label: ctx => {
+              if (ctx.dataset.label === 'Zero') return null;
+              const v = ctx.parsed.y;
+              return ` ${ctx.dataset.label}: ${v >= 0 ? '+' : ''}${v.toFixed(2)}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          title: { display: true, text: 'Prezzo del sottostante (S)', color: '#7a7a78', font: { size: 11 } },
+          ticks: { color: '#7a7a78', font: { family: 'IBM Plex Mono', size: 10 }, maxTicksLimit: 10,
+                   callback: (_, i) => prices[i] !== undefined ? prices[i].toFixed(0) : '' },
+          grid: { color: 'rgba(255,255,255,0.05)' },
+          border: { color: 'rgba(255,255,255,0.15)' }
+        },
+        y: {
+          title: { display: true, text: 'Payoff / Profitto', color: '#7a7a78', font: { size: 11 } },
+          ticks: { color: '#7a7a78', font: { family: 'IBM Plex Mono', size: 10 },
+                   callback: v => (v >= 0 ? '+' : '') + v.toFixed(0) },
+          grid: { color: 'rgba(255,255,255,0.05)' },
+          border: { color: 'rgba(255,255,255,0.15)' }
+        }
+      },
+      interaction: { mode: 'index', intersect: false }
+    }
+  });
+}
+
+const PRESETS = {
+  straddle:    [{type:'lc',strike:100,premium:5,qty:1},{type:'lp',strike:100,premium:5,qty:1}],
+  strangle:    [{type:'lc',strike:110,premium:3,qty:1},{type:'lp',strike:90, premium:3,qty:1}],
+  bull_spread: [{type:'lc',strike:95, premium:7,qty:1},{type:'sc',strike:105,premium:3,qty:1}],
+  bear_spread: [{type:'lp',strike:105,premium:7,qty:1},{type:'sp',strike:95, premium:3,qty:1}],
+  butterfly:   [{type:'lc',strike:90, premium:8,qty:1},{type:'sc',strike:100,premium:5,qty:2},{type:'lc',strike:110,premium:2,qty:1}],
+  covered_call:[{type:'lc',strike:105,premium:4,qty:-1}],
+};
+
+function loadPreset(name) {
+  options = PRESETS[name].map((o,i) => ({...o, id: Date.now()+i}));
+  renderList();
+  renderChart();
+}
+
+function resetAll() {
+  options = [];
+  renderList();
+  renderChart();
+}
+</script>
+</body>
+</html>
